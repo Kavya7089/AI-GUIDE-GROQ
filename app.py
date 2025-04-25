@@ -1,5 +1,5 @@
 import re
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
 from groq_api import (
     ask_groq,
@@ -20,13 +20,13 @@ import os
 
 
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="./templates/dist", static_url_path="/")
 CORS(app)  # Enable CORS for React frontend
 
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return send_from_directory(app.static_folder, "index.html")
 
 # -------------------- ASK A QUESTION --------------------
 @app.route('/ask', methods=['POST'])
@@ -102,12 +102,15 @@ def handle_places():
 
     # Extract JSON using a regex (matches text between first and last brackets)
     try:
-        match = re.search(r"\[\s*{.*?}\s*\]", places, re.DOTALL)
+        match = re.search(r"\[.*?\]", places, re.DOTALL)
         if not match:
             raise ValueError("No valid JSON array found in Groq response.")
         json_str = match.group(0)
         parsed = json.loads(json_str)
         return jsonify({'places': parsed})
+    except json.JSONDecodeError as e:
+        print("❌ JSON decoding error:", e)
+        return jsonify({'error': '❌ Failed to parse places data.', 'raw': places})
     except Exception as e:
         print("❌ Error parsing places data:", e)
         return jsonify({'error': '❌ Failed to parse places data.', 'raw': places})
@@ -209,5 +212,4 @@ def handle_place_info():
 
 # -------------------- RUN SERVER --------------------
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))  # Default to 5000 if PORT is not set
-    app.run(host='0.0.0.0', port=port)
+    app.run(debug=True)
